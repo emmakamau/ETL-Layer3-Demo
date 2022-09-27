@@ -1,16 +1,42 @@
-# This is a sample Python script.
+import os
+import sys
+import petl
+import pymssql
+import configparser
+import requests
+import datetime
+import json
+import decimal
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+# Read config file
+config = configparser.ConfigParser()
+try:
+    config.read('ETLDemo.ini')
+except:
+    print('Error reading config file')
+    sys.exit()
 
+# Read config file
+startDate = config['CONFIG']['startDate']
+url = config['CONFIG']['url']
+testServer = config['CONFIG']['server']
+testDatabase = config['CONFIG']['database']
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+try:
+    BOCResponse = requests.get(url+startDate)
+except Exception as e:
+    print('Could not make request:' + str(e))
+    sys.exit()
 
+BOCDates = []
+BOCRates = []
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+if(BOCResponse.status_code == 200):
+    BOCData = json.loads(BOCResponse.text)
+    for row in BOCData['observations']:
+        BOCDates.append(datetime.datetime.strptime(row['d'], '%Y-%m-%d'))
+        BOCRates.append(decimal.Decimal(row['FXUSDCAD']['v']))
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    # Create table  from BOC data
+    exchangeRates = petl.fromcolumns([BOCDates, BOCRates], header=['Date', 'Rate'])
+    print(exchangeRates)
